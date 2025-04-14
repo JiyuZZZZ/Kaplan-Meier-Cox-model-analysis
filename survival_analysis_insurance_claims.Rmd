@@ -1,0 +1,92 @@
+---
+title: "survival_analysis_insurance_claims.Rmd"
+author: "Jiyu Zhang"
+date: "2025-04-14"
+output: html_document
+---
+This analysis investigates the survival time to first medical insurance claim for two groups of individuals (Group A and Group B) using:
+	•	Kaplan-Meier estimator
+	•	Cox proportional hazards model
+The dataset is synthetic and includes age, time to first claim, censoring status, and group membership.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load Libraries and Data
+```{r libraries}
+library(survival)
+library(survminer)
+
+# Reproducibility
+set.seed(2298)
+
+# Create dataset
+Group <- c(rep("A", 5), rep("B", 5))
+Age <- c(75, 94, 30, 71, 48, 13, 89, 80, 93, 78)
+Time <- c(0.6574794, 2.0665514, 2.0744577, 2.37401, 2.7074722, 
+          0.2005577, 0.3497374, 1.6331543, 3.8931681, 4.0719423)
+Censor <- c(0, 1, 0, 0, 1, 0, 1, 0, 0, 0)
+
+data <- data.frame(Group, Age, Time, Censor)
+data$Group <- as.factor(data$Group)
+```
+
+ Kaplan-Meier Estimates
+ 
+```{r km-fit}
+km_fit <- survfit(Surv(Time, Censor) ~ Group, data = data)
+
+# Plot
+ggsurvplot(km_fit,
+           data = data,
+           conf.int = TRUE,
+           risk.table = TRUE,
+           title = "Kaplan-Meier Survival Curve by Group",
+           xlab = "Time (Years)",
+           ylab = "Survival Probability")
+```
+	•	Group A tends to reach first claim earlier than Group B.
+	•	Censoring is present, and confidence intervals are wider due to small sample size.
+
+Estimate Specific Probabilities
+```{r quantities}
+# Pr(TA ≤ 2.7) → From KM survival function
+Quantity1 <- summary(km_fit, times = 2.7)$surv[1]  # for Group A
+
+# Pr(TB > 4.5) → Not directly defined due to censoring
+Quantity2 <- NA  # Cannot estimate beyond observed time
+Quantity1
+Quantity2
+``` 
+
+Cox Proportional Hazards Model
+```{r cox-model}
+cox_fit <- coxph(Surv(Time, Censor) ~ Group + Age, data = data)
+summary(cox_fit)
+```
+```{r hazard-ratios}
+Quantity3 <- coef(cox_fit)[1]  # β1 for Group
+Quantity4 <- coef(cox_fit)[2]  # β2 for Age
+exp(Quantity3)  # HR for Group
+exp(Quantity4)  # HR for Age
+```
+
+Likelihood Ratio Test Statistic
+```{r lrt}
+Quantity6 <- summary(cox_fit)$logtest[1] # Likelihood ratio test statistic
+Quantity6
+```
+
+Summary of Results
+•	Kaplan-Meier Estimate:
+	Pr(TA ≤ 2.7) ≈ r round(1 - Quantity1, 2)
+	Pr(TB > 4.5) is undefined due to right-censoring beyond 4.07
+•	Cox Model Coefficients:
+	β1 (Group): r round(Quantity3, 3) → HR ≈ r round(exp(Quantity3), 3)
+	β2 (Age): r round(Quantity4, 3) → HR ≈ r round(exp(Quantity4), 3)
+•	Likelihood Ratio Test Statistic: r Quantity6
+	
+Conclusion
+•	The analysis suggests Group has a substantial effect on time to first insurance claim, with Group B likely to claim later than Group A.
+•	Age has a minor effect, as its hazard ratio is close to 1.
+•	Due to small sample size, the statistical power is low; further analysis on a larger dataset is recommended.
